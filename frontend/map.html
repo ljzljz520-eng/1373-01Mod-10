@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
+  <title>馆内地图 - 图书管理系统</title>
+  <link rel="stylesheet" href="css/style.css?v=20260301">
+  <style>
+    .map-container {
+      position: relative;
+      background: var(--color-bg-card);
+      border: 1px solid var(--color-border-strong);
+      border-radius: var(--radius-lg);
+      padding: var(--space-lg);
+      margin-bottom: var(--space-lg);
+      overflow: hidden;
+      touch-action: pan-x pan-y pinch-zoom;
+    }
+
+    .map-controls {
+      display: flex;
+      gap: var(--space-sm);
+      margin-bottom: var(--space-md);
+      flex-wrap: wrap;
+    }
+
+    .map-controls button {
+      padding: var(--space-sm) var(--space-md);
+      font-size: 0.9rem;
+    }
+
+    .map-svg-wrapper {
+      overflow: auto;
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius);
+      background: #fafbfd;
+      position: relative;
+    }
+
+    .map-svg {
+      display: block;
+      min-width: 100%;
+      height: auto;
+      transform-origin: top left;
+      transition: transform 0.2s ease;
+    }
+
+    .map-legend {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: var(--space-md);
+      margin-top: var(--space-lg);
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: var(--space-sm);
+      padding: var(--space-sm) var(--space-md);
+      background: var(--color-bg);
+      border-radius: var(--radius);
+      border: 1px solid var(--color-border);
+    }
+
+    .legend-icon {
+      width: 24px;
+      height: 24px;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+      font-size: 0.75rem;
+      border-radius: 4px;
+    }
+
+    .route-guide {
+      background: var(--color-bg-card);
+      border: 1px solid var(--color-border-strong);
+      border-radius: var(--radius-lg);
+      padding: var(--space-lg);
+    }
+
+    .route-guide h3 {
+      color: var(--color-primary);
+      margin-top: 0;
+      margin-bottom: var(--space-md);
+    }
+
+    .route-item {
+      padding: var(--space-md);
+      border-left: 3px solid var(--color-primary);
+      background: var(--color-bg);
+      margin-bottom: var(--space-sm);
+      border-radius: 0 var(--radius) var(--radius) 0;
+    }
+
+    .route-item strong {
+      color: var(--color-primary);
+      display: block;
+      margin-bottom: var(--space-xs);
+    }
+
+    .print-tip {
+      display: none;
+      text-align: center;
+      padding: var(--space-md);
+      background: var(--color-bg);
+      border-radius: var(--radius);
+      margin-bottom: var(--space-md);
+      font-size: 0.9rem;
+      color: var(--color-text-muted);
+    }
+
+    .map-location {
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+
+    .map-location:hover {
+      opacity: 0.8;
+    }
+
+    .zoom-hint {
+      display: none;
+      text-align: center;
+      padding: var(--space-sm);
+      color: var(--color-text-muted);
+      font-size: 0.85rem;
+    }
+
+    @media (max-width: 768px) {
+      .zoom-hint {
+        display: block;
+      }
+    }
+
+    @media print {
+      .site-header,
+      .site-footer,
+      .map-controls,
+      .zoom-hint,
+      .map-svg-wrapper {
+        display: none !important;
+      }
+
+      .print-tip {
+        display: block;
+      }
+
+      .main {
+        padding: 0 !important;
+        max-width: 100% !important;
+      }
+
+      .route-guide {
+        border: none !important;
+        box-shadow: none !important;
+        padding: 0 !important;
+      }
+
+      .route-item {
+        page-break-inside: avoid;
+        border-left-color: #000 !important;
+      }
+
+      .section-title {
+        border-bottom-color: #000 !important;
+        color: #000 !important;
+      }
+
+      .map-legend {
+        grid-template-columns: repeat(2, 1fr);
+      }
+
+      .legend-item {
+        border: 1px solid #ccc !important;
+        background: #fff !important;
+      }
+
+      .legend-icon {
+        border: 1px solid #000 !important;
+      }
+
+      .card {
+        border: none !important;
+        box-shadow: none !important;
+        padding: var(--space-md) 0 !important;
+      }
+
+      body {
+        background: #fff !important;
+        color: #000 !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="page-wrap">
+    <header class="site-header">
+      <div class="container">
+        <div class="site-logo">
+          <img src="images/logo.svg" alt="Logo">
+          <h1 class="site-title"><a href="index.html">图书管理系统</a></h1>
+        </div>
+        <nav>
+          <ul class="nav-list">
+            <li><a href="index.html">首页</a></li>
+            <li><a href="login.html">登录</a></li>
+            <li><a href="register.html">注册</a></li>
+            <li><a href="about.html">关于</a></li>
+            <li>
+              <span class="nav-drop-trigger">服务</span>
+              <div class="nav-drop">
+                <a href="list.html">图书列表</a>
+                <a href="borrow.html">借阅说明</a>
+                <a href="contact.html">联系</a>
+                <a href="map.html" class="current">馆内地图</a>
+              </div>
+            </li>
+          </ul>
+        </nav>
+
+      </div>
+    </header>
+
+    <main class="main">
+      <section>
+        <h2 class="section-title">馆内地图</h2>
+
+        <div class="print-tip">
+          馆内路线导览 | 打印时间：<span id="print-date"></span>
+        </div>
+
+        <div class="map-container">
+          <div class="map-controls">
+            <button type="button" class="btn btn-secondary" id="zoom-in">放大 +</button>
+            <button type="button" class="btn btn-secondary" id="zoom-out">缩小 -</button>
+            <button type="button" class="btn btn-secondary" id="zoom-reset">重置</button>
+            <button type="button" class="btn btn-primary" id="print-btn" onclick="window.print()">打印路线</button>
+          </div>
+
+          <p class="zoom-hint">提示：双指捏合或点击按钮可放大查看地图</p>
+
+          <div class="map-svg-wrapper" id="map-wrapper">
+            <svg class="map-svg" id="library-map" viewBox="0 0 800 500" xmlns="http://www.w3.org/2000/svg">
+              <defs>
+                <pattern id="floor-pattern" patternUnits="userSpaceOnUse" width="40" height="40">
+                  <rect width="40" height="40" fill="#fafbfd"/>
+                  <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#e8ecf3" stroke-width="1"/>
+                </pattern>
+              </defs>
+
+              <rect width="800" height="500" fill="url(#floor-pattern)" stroke="#c9d5f2" stroke-width="3"/>
+
+              <line x1="50" y1="120" x2="750" y2="120" stroke="#d1d9eb" stroke-width="2" stroke-dasharray="8,4"/>
+              <line x1="50" y1="380" x2="750" y2="380" stroke="#d1d9eb" stroke-width="2" stroke-dasharray="8,4"/>
+
+              <text x="400" y="30" text-anchor="middle" font-size="18" font-weight="600" fill="#1f6feb">图书馆一层平面图</text>
+              <text x="400" y="55" text-anchor="middle" font-size="12" fill="#5f6b7a">North ↑</text>
+
+              <g class="map-location" data-name="入口">
+                <rect x="350" y="460" width="100" height="30" fill="#e8f5e9" stroke="#2e7d32" stroke-width="2" rx="4"/>
+                <text x="400" y="480" text-anchor="middle" font-size="12" font-weight="500" fill="#2e7d32">入口</text>
+              </g>
+
+              <g class="map-location" data-name="服务台">
+                <rect x="320" y="380" width="160" height="60" fill="#e3f2fd" stroke="#1565c0" stroke-width="3" rx="8"/>
+                <text x="400" y="415" text-anchor="middle" font-size="14" font-weight="600" fill="#1565c0">服务台</text>
+                <circle cx="340" cy="400" r="4" fill="#1565c0"/>
+                <circle cx="400" cy="400" r="4" fill="#1565c0"/>
+                <circle cx="460" cy="400" r="4" fill="#1565c0"/>
+              </g>
+
+              <g class="map-location" data-name="还书箱">
+                <rect x="650" y="390" width="70" height="50" fill="#fff3e0" stroke="#e65100" stroke-width="3" rx="6"/>
+                <text x="685" y="420" text-anchor="middle" font-size="12" font-weight="600" fill="#e65100">还书箱</text>
+                <path d="M 670 400 L 700 400" stroke="#e65100" stroke-width="2"/>
+                <path d="M 685 395 L 685 405" stroke="#e65100" stroke-width="2"/>
+              </g>
+
+              <g class="map-location" data-name="电梯">
+                <rect x="60" y="60" width="60" height="60" fill="#f3e5f5" stroke="#7b1fa2" stroke-width="3" rx="6"/>
+                <text x="90" y="95" text-anchor="middle" font-size="12" font-weight="600" fill="#7b1fa2">电梯</text>
+                <text x="90" y="78" text-anchor="middle" font-size="10" fill="#7b1fa2">↑↓</text>
+              </g>
+
+              <g class="map-location" data-name="卫生间（男）">
+                <rect x="680" y="60" width="50" height="50" fill="#ffebee" stroke="#c62828" stroke-width="2" rx="4"/>
+                <text x="705" y="90" text-anchor="middle" font-size="11" font-weight="600" fill="#c62828">男厕</text>
+              </g>
+
+              <g class="map-location" data-name="卫生间（女）">
+                <rect x="620" y="60" width="50" height="50" fill="#fce4ec" stroke="#ad1457" stroke-width="2" rx="4"/>
+                <text x="645" y="90" text-anchor="middle" font-size="11" font-weight="600" fill="#ad1457">女厕</text>
+              </g>
+
+              <g class="map-location" data-name="自习区 A">
+                <rect x="150" y="150" width="200" height="100" fill="#e8f5e9" stroke="#2e7d32" stroke-width="2" rx="6"/>
+                <text x="250" y="205" text-anchor="middle" font-size="13" font-weight="600" fill="#2e7d32">自习区 A</text>
+                <rect x="170" y="170" width="30" height="60" fill="#c8e6c9" stroke="#2e7d32" stroke-width="1" rx="2"/>
+                <rect x="220" y="170" width="30" height="60" fill="#c8e6c9" stroke="#2e7d32" stroke-width="1" rx="2"/>
+                <rect x="270" y="170" width="30" height="60" fill="#c8e6c9" stroke="#2e7d32" stroke-width="1" rx="2"/>
+                <rect x="320" y="170" width="15" height="60" fill="#c8e6c9" stroke="#2e7d32" stroke-width="1" rx="2"/>
+              </g>
+
+              <g class="map-location" data-name="自习区 B">
+                <rect x="450" y="150" width="200" height="100" fill="#e8f5e9" stroke="#2e7d32" stroke-width="2" rx="6"/>
+                <text x="550" y="205" text-anchor="middle" font-size="13" font-weight="600" fill="#2e7d32">自习区 B</text>
+                <rect x="470" y="170" width="30" height="60" fill="#c8e6c9" stroke="#2e7d32" stroke-width="1" rx="2"/>
+                <rect x="520" y="170" width="30" height="60" fill="#c8e6c9" stroke="#2e7d32" stroke-width="1" rx="2"/>
+                <rect x="570" y="170" width="30" height="60" fill="#c8e6c9" stroke="#2e7d32" stroke-width="1" rx="2"/>
+                <rect x="620" y="170" width="15" height="60" fill="#c8e6c9" stroke="#2e7d32" stroke-width="1" rx="2"/>
+              </g>
+
+              <g class="map-location" data-name="自习区 C">
+                <rect x="150" y="270" width="200" height="80" fill="#e8f5e9" stroke="#2e7d32" stroke-width="2" rx="6"/>
+                <text x="250" y="318" text-anchor="middle" font-size="13" font-weight="600" fill="#2e7d32">自习区 C</text>
+                <rect x="170" y="290" width="30" height="40" fill="#c8e6c9" stroke="#2e7d32" stroke-width="1" rx="2"/>
+                <rect x="220" y="290" width="30" height="40" fill="#c8e6c9" stroke="#2e7d32" stroke-width="1" rx="2"/>
+                <rect x="270" y="290" width="30" height="40" fill="#c8e6c9" stroke="#2e7d32" stroke-width="1" rx="2"/>
+                <rect x="320" y="290" width="15" height="40" fill="#c8e6c9" stroke="#2e7d32" stroke-width="1" rx="2"/>
+              </g>
+
+              <g class="map-location" data-name="图书区">
+                <rect x="450" y="270" width="200" height="80" fill="#fff8e1" stroke="#f57f17" stroke-width="2" rx="6"/>
+                <text x="550" y="318" text-anchor="middle" font-size="13" font-weight="600" fill="#f57f17">图书区</text>
+                <rect x="470" y="285" width="160" height="8" fill="#ffe082" stroke="#f57f17" stroke-width="1"/>
+                <rect x="470" y="300" width="160" height="8" fill="#ffe082" stroke="#f57f17" stroke-width="1"/>
+                <rect x="470" y="315" width="160" height="8" fill="#ffe082" stroke="#f57f17" stroke-width="1"/>
+                <rect x="470" y="330" width="160" height="8" fill="#ffe082" stroke="#f57f17" stroke-width="1"/>
+              </g>
+
+              <g class="map-location" data-name="无障碍通道">
+                <path d="M 380 460 L 380 445 L 420 445 L 420 460" fill="none" stroke="#0d47a1" stroke-width="4" stroke-dasharray="none"/>
+                <rect x="375" y="425" width="50" height="25" fill="#e3f2fd" stroke="#0d47a1" stroke-width="2" rx="4"/>
+                <text x="400" y="442" text-anchor="middle" font-size="10" font-weight="600" fill="#0d47a1">无障碍</text>
+                <circle cx="360" cy="440" r="12" fill="#e3f2fd" stroke="#0d47a1" stroke-width="2"/>
+                <text x="360" y="444" text-anchor="middle" font-size="12" fill="#0d47a1">♿</text>
+              </g>
+
+              <path d="M 400 470 L 400 445" stroke="#1f6feb" stroke-width="3" stroke-dasharray="6,3" marker-end="url(#arrowhead)"/>
+              <path d="M 400 430 L 400 410" stroke="#1f6feb" stroke-width="2" stroke-dasharray="4,2" opacity="0.6"/>
+
+              <path d="M 90 120 L 90 380 L 320 380" stroke="#1f6feb" stroke-width="2" stroke-dasharray="5,3" opacity="0.5"/>
+              <path d="M 705 110 L 705 390" stroke="#1f6feb" stroke-width="2" stroke-dasharray="5,3" opacity="0.5"/>
+
+              <defs>
+                <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="0" refY="3.5" orient="auto">
+                  <polygon points="0 0, 10 3.5, 0 7" fill="#1f6feb"/>
+                </marker>
+              </defs>
+
+              <text x="30" y="45" font-size="11" fill="#5f6b7a">比例尺 1:200</text>
+              <line x1="30" y1="55" x2="130" y2="55" stroke="#5f6b7a" stroke-width="2"/>
+              <line x1="30" y1="50" x2="30" y2="60" stroke="#5f6b7a" stroke-width="2"/>
+              <line x1="80" y1="50" x2="80" y2="60" stroke="#5f6b7a" stroke-width="2"/>
+              <line x1="130" y1="50" x2="130" y2="60" stroke="#5f6b7a" stroke-width="2"/>
+              <text x="55" y="72" font-size="10" fill="#5f6b7a">5m</text>
+              <text x="105" y="72" font-size="10" fill="#5f6b7a">10m</text>
+            </svg>
+          </div>
+
+          <div class="map-legend">
+            <div class="legend-item">
+              <span class="legend-icon" style="background: #e3f2fd; color: #1565c0; border: 2px solid #1565c0;">服</span>
+              <span>服务台</span>
+            </div>
+            <div class="legend-item">
+              <span class="legend-icon" style="background: #fff3e0; color: #e65100; border: 2px solid #e65100;">还</span>
+              <span>还书箱</span>
+            </div>
+            <div class="legend-item">
+              <span class="legend-icon" style="background: #f3e5f5; color: #7b1fa2; border: 2px solid #7b1fa2;">梯</span>
+              <span>电梯</span>
+            </div>
+            <div class="legend-item">
+              <span class="legend-icon" style="background: #ffebee; color: #c62828; border: 2px solid #c62828;">卫</span>
+              <span>卫生间</span>
+            </div>
+            <div class="legend-item">
+              <span class="legend-icon" style="background: #e8f5e9; color: #2e7d32; border: 2px solid #2e7d32;">自</span>
+              <span>自习区</span>
+            </div>
+            <div class="legend-item">
+              <span class="legend-icon" style="background: #e3f2fd; color: #0d47a1; border: 2px solid #0d47a1;">♿</span>
+              <span>无障碍通道</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <h2 class="section-title">路线说明</h2>
+        <div class="route-guide">
+          <div class="route-item">
+            <strong>从入口到服务台</strong>
+            进入大门后直行约5米即到达服务台，位于大厅正前方。
+          </div>
+          <div class="route-item">
+            <strong>从入口到还书箱</strong>
+            进入大门后右转，沿右侧通道直行约15米，还书箱位于通道右侧。
+          </div>
+          <div class="route-item">
+            <strong>从入口到电梯</strong>
+            进入大门后左转，沿左侧通道直行约20米，电梯位于通道尽头左侧。
+          </div>
+          <div class="route-item">
+            <strong>从入口到卫生间</strong>
+            进入大门后右转，沿右侧通道直行约20米，男女卫生间位于通道尽头右侧。
+          </div>
+          <div class="route-item">
+            <strong>从服务台到自习区</strong>
+            从服务台出发，向后方走约10米穿过通道，即可到达自习区A、B、C区。
+          </div>
+          <div class="route-item">
+            <strong>无障碍通道</strong>
+            位于大门入口处右侧，设有无障碍坡道，通往服务台及各区域均有无障碍通道。
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container">
+        <p>&copy; 2025 图书管理系统。保留所有权利。</p>
+      </div>
+    </footer>
+  </div>
+
+  <script>
+    (function() {
+      var map = document.getElementById('library-map');
+      var wrapper = document.getElementById('map-wrapper');
+      var zoomInBtn = document.getElementById('zoom-in');
+      var zoomOutBtn = document.getElementById('zoom-out');
+      var zoomResetBtn = document.getElementById('zoom-reset');
+      var printDate = document.getElementById('print-date');
+
+      var currentScale = 1;
+      var minScale = 0.5;
+      var maxScale = 3;
+      var scaleStep = 0.25;
+
+      function updateZoom() {
+        map.style.transform = 'scale(' + currentScale + ')';
+      }
+
+      zoomInBtn.addEventListener('click', function() {
+        if (currentScale < maxScale) {
+          currentScale = Math.min(currentScale + scaleStep, maxScale);
+          updateZoom();
+        }
+      });
+
+      zoomOutBtn.addEventListener('click', function() {
+        if (currentScale > minScale) {
+          currentScale = Math.max(currentScale - scaleStep, minScale);
+          updateZoom();
+        }
+      });
+
+      zoomResetBtn.addEventListener('click', function() {
+        currentScale = 1;
+        updateZoom();
+      });
+
+      var lastTouchDistance = 0;
+      wrapper.addEventListener('touchstart', function(e) {
+        if (e.touches.length === 2) {
+          var dx = e.touches[0].clientX - e.touches[1].clientX;
+          var dy = e.touches[0].clientY - e.touches[1].clientY;
+          lastTouchDistance = Math.sqrt(dx * dx + dy * dy);
+        }
+      }, { passive: true });
+
+      wrapper.addEventListener('touchmove', function(e) {
+        if (e.touches.length === 2) {
+          e.preventDefault();
+          var dx = e.touches[0].clientX - e.touches[1].clientX;
+          var dy = e.touches[0].clientY - e.touches[1].clientY;
+          var distance = Math.sqrt(dx * dx + dy * dy);
+          var delta = distance - lastTouchDistance;
+          if (Math.abs(delta) > 5) {
+            var scaleChange = delta > 0 ? scaleStep : -scaleStep;
+            currentScale = Math.max(minScale, Math.min(maxScale, currentScale + scaleChange * 0.5));
+            updateZoom();
+            lastTouchDistance = distance;
+          }
+        }
+      }, { passive: false });
+
+      printDate.textContent = new Date().toLocaleDateString('zh-CN');
+    })();
+  </script>
+</body>
+</html>
